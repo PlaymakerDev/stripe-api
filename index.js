@@ -2,8 +2,9 @@ const e = require('express');
 const express = require('express');
 const app = express();
 
-const stripe = require('stripe')('sk_test_51K1ZRRAFOerKpHQwkQAsLztlVoHOOIroAmWM2tTyO7UUbpYGtwHNNFBD1mqJSSPYcTNJpMO3KlsaR6FBJnQBZDaD00xr70GEYg');
+const stripe = require('stripe')('sk_test_YOUR-KEY');
 
+// DATA MODEL
 const customers = {
   stripeCustomerId: {
     apiKey: '123xyz',
@@ -14,10 +15,10 @@ const customers = {
 };
 
 const apiKeys = {
-  // apiKey : customerdata
   '123xyz': 'cust1',
 };
 
+// Custom API Key Generation & Hashing
 function generateAPIKey() {
   const { randomBytes } = require('crypto');
   const apiKey = randomBytes(16).toString('hex');
@@ -30,44 +31,15 @@ function generateAPIKey() {
   }
 }
 
-function hashedAPIKey(apiKey) {
+function hashAPIKey(apiKey) {
   const { createHash } = require('crypto');
+
   const hashedAPIKey = createHash('md5').update(apiKey).digest('hex');
 
   return hashedAPIKey
 }
 
-app.get('/api', async (req, res) => {
-
-  const apiKey = req.query.apiKey;
-
-  if (!apiKey) {
-    res.sendStatus(400);
-  }
-
-  const hashedAPIKey = hashAPIKey(apiKey)
-
-  const customerId = apiKeys[hashedAPIKey];
-  const customer = customers[customerId];
-
-  if (!customer.active) {
-    res.sendStatus(403);
-  } else {
-    const record = await stripe.subscriptionItems.createUsageRecord(
-      customer.itemId,
-      {
-        quantity: 1,
-        timestamp: 'now',
-        action: 'increment',
-      }
-    );
-    res.send({ data: '🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥', usage: record });
-  }
-});
-
-////// Express API ///////
-
-// Create a Stripe Checkout Session to create a customer and subscribe them to a plan
+// Express API
 app.post('/checkout', async (req, res) => {
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -77,9 +49,6 @@ app.post('/checkout', async (req, res) => {
         price: 'price_1K1ZTkAFOerKpHQwflLt8ecT',
       },
     ],
-    // {CHECKOUT_SESSION_ID} is a string literal; do not change it!
-    // the actual Session ID is returned in the query parameter when your customer
-    // is redirected to the success page.
     success_url: 'http://localhost:5000/success?session_id={CHECKOUT_SUCCESS_ID}',
     cancel_url: 'http://localhost:5000/error',
   });
@@ -107,7 +76,6 @@ app.post('/webhook', async (req, res) => {
       console.log(`⚠️  Webhook signature verification failed.`);
       return res.sendStatus(400);
     }
-
     data = event.data;
     eventType = event.type;
   } else {
@@ -140,6 +108,44 @@ app.post('/webhook', async (req, res) => {
   }
 })
 
+
+app.get('/customers/:id', (req, res) => {
+  const customerId = req.params.id;
+  const account = customers[customerId];
+  if (account) {
+    res.send(account);
+  } else {
+    res.sendStatus(404);
+  }
+});
+
+app.get('/api', async (req, res) => {
+  const apiKey = req.query.apiKey;
+
+  if (!apiKey) {
+    res.sendStatus(400);
+  }
+
+  const hashedAPIKey = hashAPIKey(apiKey)
+
+  const customerId = apiKeys[hashedAPIKey];
+  const customer = customers[customerId];
+
+  if (!customer.active) {
+    res.sendStatus(403);
+  } else {
+    const record = await stripe.subscriptionItems.createUsageRecord(
+      customer.itemId,
+      {
+        quantity: 1,
+        timestamp: 'now',
+        action: 'increment',
+      }
+    );
+    res.send({ data: '🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥', usage: record });
+  }
+});
+
 app.get('/usage/:customer', async (req, res) => {
   const customerId = req.params.customer;
   const invoice = await stripe.invoices.retrieveUpcoming({
@@ -149,4 +155,4 @@ app.get('/usage/:customer', async (req, res) => {
   res.send(invoice);
 });
 
-app.listen(8080, () => console.log('Running on http://localhost:8080'));
+app.listen(8080, () => console.log('Start server on http://localhost:8080'));
